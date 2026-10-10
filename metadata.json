@@ -1,0 +1,6 @@
+{
+  "name": "Skripsi Journey — Research Tracker",
+  "description": "Aplikasi pendamping perjalanan skripsi mahasiswa Teknik Informatika dari tahap persiapan penelitian hingga sidang akhir dan penyelesaian revisi untuk kelompok 3 orang.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

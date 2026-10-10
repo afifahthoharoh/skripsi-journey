@@ -1,0 +1,267 @@
+{
+  "entities": {
+    "Group": {
+      "title": "Group",
+      "description": "Research Group for 3 students",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "theme": { "type": "string" },
+        "themeDescription": { "type": "string" },
+        "location": { "type": "string" },
+        "sharedDataSources": { "type": "string" },
+        "dataPermissions": { "type": "string" },
+        "advisorNotes": { "type": "string" },
+        "inviteCode": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "activeStage": { "type": "string" },
+        "memberCount": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "inviteCode", "creatorId", "memberCount"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Student member of research group",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "nim": { "type": "string" },
+        "role": { "type": "string" },
+        "researchTitleTemp": { "type": "string" },
+        "researchTitleApproved": { "type": "string" },
+        "background": { "type": "string" },
+        "problemStatement": { "type": "string" },
+        "objectives": { "type": "string" },
+        "limitations": { "type": "string" },
+        "method": { "type": "string" },
+        "dataset": { "type": "string" },
+        "expectedContribution": { "type": "string" },
+        "evaluationIndicators": { "type": "string" },
+        "approvalStatus": { "type": "string" },
+        "joinedAt": { "type": "string" }
+      },
+      "required": ["id", "groupId", "uid", "email", "displayName", "role"]
+    },
+    "TaskItem": {
+      "title": "TaskItem",
+      "description": "Thesis task item across stages A-N",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "stage": { "type": "string" },
+        "assigneeId": { "type": "string" },
+        "assigneeName": { "type": "string" },
+        "status": { "type": "string" },
+        "priority": { "type": "string" },
+        "startDate": { "type": "string" },
+        "deadline": { "type": "string" },
+        "notes": { "type": "string" },
+        "evidenceUrl": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "createdById": { "type": "string" }
+      },
+      "required": ["id", "groupId", "title", "stage", "status", "priority"]
+    },
+    "SurveyItem": {
+      "title": "SurveyItem",
+      "description": "Field survey observation log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "date": { "type": "string" },
+        "location": { "type": "string" },
+        "contactName": { "type": "string" },
+        "contactRole": { "type": "string" },
+        "processObserved": { "type": "string" },
+        "problemsFound": { "type": "string" },
+        "evidenceUrl": { "type": "string" },
+        "availableData": { "type": "string" },
+        "dataPeriod": { "type": "string" },
+        "dataCompleteness": { "type": "string" },
+        "dataPermissionStatus": { "type": "string" },
+        "accessConstraints": { "type": "string" },
+        "conclusion": { "type": "string" },
+        "followUpAssignee": { "type": "string" },
+        "createdById": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "groupId", "date", "location"]
+    },
+    "LiteratureItem": {
+      "title": "LiteratureItem",
+      "description": "Literature review matrix item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "authors": { "type": "string" },
+        "year": { "type": "number" },
+        "title": { "type": "string" },
+        "venue": { "type": "string" },
+        "doiUrl": { "type": "string" },
+        "researchObject": { "type": "string" },
+        "datasetCharacteristics": { "type": "string" },
+        "method": { "type": "string" },
+        "results": { "type": "string" },
+        "limitations": { "type": "string" },
+        "researchGap": { "type": "string" },
+        "relationToGroup": { "type": "string" },
+        "verificationStatus": { "type": "string" },
+        "relevanceForUserId": { "type": "string" },
+        "createdById": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "groupId", "title", "authors", "year"]
+    },
+    "DocumentItem": {
+      "title": "DocumentItem",
+      "description": "Research document or dataset link",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "allowedAccess": { "type": "string" },
+        "docUrl": { "type": "string" },
+        "permissionProofUrl": { "type": "string" },
+        "notes": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "groupId", "title", "category", "docUrl"]
+    },
+    "SupervisionLog": {
+      "title": "SupervisionLog",
+      "description": "Advisor guidance log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "date": { "type": "string" },
+        "advisorName": { "type": "string" },
+        "topic": { "type": "string" },
+        "feedbackNotes": { "type": "string" },
+        "revisionList": { "type": "string" },
+        "assigneeId": { "type": "string" },
+        "deadline": { "type": "string" },
+        "status": { "type": "string" },
+        "proofUrl": { "type": "string" },
+        "approvalNotes": { "type": "string" },
+        "type": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "groupId", "date", "advisorName", "topic"]
+    },
+    "RevisionItem": {
+      "title": "RevisionItem",
+      "description": "Proposal or Final Defense Examiner Revision Item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "type": { "type": "string" },
+        "reviewerName": { "type": "string" },
+        "reviewerRole": { "type": "string" },
+        "notes": { "type": "string" },
+        "affectedChapter": { "type": "string" },
+        "assigneeId": { "type": "string" },
+        "deadline": { "type": "string" },
+        "status": { "type": "string" },
+        "proofUrl": { "type": "string" },
+        "verificationNotes": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "groupId", "type", "reviewerName", "notes"]
+    },
+    "ChapterProgress": {
+      "title": "ChapterProgress",
+      "description": "Sub-chapter progress tracking for Bab I-V",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "chapter": { "type": "string" },
+        "subChapter": { "type": "string" },
+        "status": { "type": "string" },
+        "assigneeId": { "type": "string" },
+        "targetDate": { "type": "string" },
+        "completedDate": { "type": "string" },
+        "docUrl": { "type": "string" },
+        "notes": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "groupId", "chapter", "subChapter", "status"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Group activity history item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "actorId": { "type": "string" },
+        "actorName": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "groupId", "actorName", "action", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/groups/{groupId}": {
+      "schema": { "$ref": "#/entities/Group" },
+      "description": "Main research group collection"
+    },
+    "/groups/{groupId}/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Group members subcollection"
+    },
+    "/groups/{groupId}/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/TaskItem" },
+      "description": "Tasks subcollection"
+    },
+    "/groups/{groupId}/surveys/{surveyId}": {
+      "schema": { "$ref": "#/entities/SurveyItem" },
+      "description": "Field survey subcollection"
+    },
+    "/groups/{groupId}/literatures/{litId}": {
+      "schema": { "$ref": "#/entities/LiteratureItem" },
+      "description": "Literature matrix subcollection"
+    },
+    "/groups/{groupId}/documents/{docId}": {
+      "schema": { "$ref": "#/entities/DocumentItem" },
+      "description": "Research documents subcollection"
+    },
+    "/groups/{groupId}/supervisions/{supId}": {
+      "schema": { "$ref": "#/entities/SupervisionLog" },
+      "description": "Supervision log subcollection"
+    },
+    "/groups/{groupId}/revisions/{revId}": {
+      "schema": { "$ref": "#/entities/RevisionItem" },
+      "description": "Revisions subcollection"
+    },
+    "/groups/{groupId}/chapters/{chapterId}": {
+      "schema": { "$ref": "#/entities/ChapterProgress" },
+      "description": "Bab I-V chapters subcollection"
+    },
+    "/groups/{groupId}/activities/{actId}": {
+      "schema": { "$ref": "#/entities/ActivityLog" },
+      "description": "Group activity stream subcollection"
+    }
+  }
+}

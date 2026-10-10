@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isGroupMember(groupId) {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/groups/$(groupId)/users/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/groups/$(groupId)) && get(/databases/$(database)/documents/groups/$(groupId)).data.creatorId == request.auth.uid)
+      );
+    }
+
+    // Groups collection
+    match /groups/{groupId} {
+      allow create, get, list: if isSignedIn();
+      allow update, delete: if isSignedIn() && (isGroupMember(groupId) || resource.data.creatorId == request.auth.uid);
+
+      match /users/{userId} {
+        allow create, get, list: if isSignedIn();
+        allow update, delete: if isSignedIn() && (isGroupMember(groupId) || userId == request.auth.uid);
+      }
+
+      match /tasks/{taskId} {
+        allow read, write: if isSignedIn() && isGroupMember(groupId);
+      }
+
+      match /surveys/{surveyId} {
+        allow read, write: if isSignedIn() && isGroupMember(groupId);
+      }
+
+      match /literatures/{litId} {
+        allow read, write: if isSignedIn() && isGroupMember(groupId);
+      }
+
+      match /documents/{docId} {
+        allow read, write: if isSignedIn() && isGroupMember(groupId);
+      }
+
+      match /supervisions/{supId} {
+        allow read, write: if isSignedIn() && isGroupMember(groupId);
+      }
+
+      match /revisions/{revId} {
+        allow read, write: if isSignedIn() && isGroupMember(groupId);
+      }
+
+      match /chapters/{chapterId} {
+        allow read, write: if isSignedIn() && isGroupMember(groupId);
+      }
+
+      match /activities/{actId} {
+        allow read, write: if isSignedIn() && isGroupMember(groupId);
+      }
+    }
+  }
+}

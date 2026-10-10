@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    color: #2b302c;
+    background-color: #f7f9f5;
+  }
+  h1, h2, h3, .font-serif {
+    font-family: 'Merriweather', Georgia, serif;
+  }
+}
+
+/* Custom Sage Green Styling Helpers */
+.bg-sage-900 { background-color: #2f3e33; }
+.bg-sage-800 { background-color: #3a5a40; }
+.bg-sage-700 { background-color: #588157; }
+.bg-sage-600 { background-color: #a3b18a; }
+.bg-sage-100 { background-color: #e9ece0; }
+.bg-sage-50 { background-color: #f4f6f0; }
+
+.text-sage-900 { color: #2f3e33; }
+.text-sage-800 { color: #3a5a40; }
+.text-sage-700 { color: #588157; }
+.text-sage-600 { color: #6b8865; }
+
+.border-sage-200 { border-color: #dad7cd; }
+.border-sage-700 { border-color: #588157; }
+
+.text-gold-600 { color: #c59b27; }
+.bg-gold-500 { background-color: #d4af37; }
+.bg-gold-50 { background-color: #fdfbf2; }
+.border-gold-300 { border-color: #e6cb78; }
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f0f3eb;
+}
+::-webkit-scrollbar-thumb {
+  background: #a3b18a;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #588157;
+}
