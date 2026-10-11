@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuthGroup } from '../context/AuthGroupContext';
-import { saveTask, saveSupervisionLog, saveLiteratureItem, saveDocumentItem, logActivity } from '../services/firestoreService';
+import { saveTask, saveSupervisionLog, saveLiteratureItem, saveDocumentItem, saveUserProfile, logActivity } from '../services/firestoreService';
+import { PWAInstallButton } from './PWAInstallButton';
 import {
   Users,
   CheckCircle2,
@@ -19,6 +20,8 @@ import {
   FileText,
   Database,
   MessageSquare,
+  ShieldCheck,
+  UserCheck,
 } from 'lucide-react';
 import { TaskItem } from '../types/skripsi';
 
@@ -41,6 +44,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const [showFormulaInfo, setShowFormulaInfo] = useState(false);
   const [quickTaskTitle, setQuickTaskTitle] = useState('');
   const [quickTaskModal, setQuickTaskModal] = useState(false);
+
+  // Ketua validation state
+  const isKetua = currentUser?.uid === group?.creatorId;
+  const pendingMembers = members.filter((m) => m.approvalStatus !== 'Disetujui Dosen' && m.uid !== group?.creatorId);
+
+  const handleApproveMemberDirect = async (memberId: string, displayName: string) => {
+    if (!group) return;
+    const targetMember = members.find((m) => m.id === memberId);
+    if (!targetMember) return;
+
+    await saveUserProfile(group.id, {
+      ...targetMember,
+      approvalStatus: 'Disetujui Dosen',
+    });
+    await logActivity(
+      group.id,
+      currentUser?.displayName || 'Ketua',
+      currentUser?.uid || '',
+      'ACC Anggota',
+      `Ketua Kelompok menyetujui pendaftaran ${displayName}`
+    );
+  };
 
   // Calculations derived from ACTUAL real data!
   const totalTasks = tasks.length || 1;
@@ -210,8 +235,61 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
         </div>
       )}
 
+      {/* Ketua ACC Notification Banner (If pending members exist) */}
+      {isKetua && pendingMembers.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-amber-100/60 p-4 sm:p-5 rounded-2xl border border-amber-300 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-amber-200/80 rounded-xl text-amber-900 shrink-0">
+                <UserCheck className="w-5 h-5 text-amber-800" />
+              </div>
+              <div>
+                <h3 className="font-serif font-bold text-sm text-amber-950">
+                  {pendingMembers.length} Anggota Baru Meminta ACC Pendaftaran
+                </h3>
+                <p className="text-xs text-amber-800">
+                  Validasi pendaftaran anggota cukup di-ACC 1x oleh akun Ketua Kelompok.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => onNavigate('settings')}
+              className="hidden sm:flex items-center gap-1 text-xs font-semibold text-amber-900 underline hover:text-amber-950"
+            >
+              Kelola di Pengaturan <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            {pendingMembers.map((pm) => (
+              <div
+                key={pm.id}
+                className="p-3 bg-white rounded-xl border border-amber-200 flex items-center justify-between text-xs gap-2 shadow-2xs"
+              >
+                <div>
+                  <div className="font-bold text-slate-900">{pm.displayName}</div>
+                  <div className="text-[11px] text-slate-500">
+                    {pm.email} • NIM: {pm.nim || 'Draft'}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleApproveMemberDirect(pm.id, pm.displayName)}
+                  className="px-3 py-1.5 bg-[#588157] hover:bg-[#3a5a40] text-white font-bold rounded-lg text-xs transition flex items-center gap-1 shrink-0 shadow-2xs"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#d4af37]" /> ACC Anggota
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Quick Action Bar */}
       <div className="flex flex-wrap items-center gap-2">
+        <PWAInstallButton compact={false} />
+
         <button
           onClick={() => setQuickTaskModal(true)}
           className="flex items-center gap-2 px-4 py-2.5 bg-[#1b4332] hover:bg-[#081c15] text-white rounded-xl text-xs font-semibold shadow-sm transition"

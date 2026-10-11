@@ -77,7 +77,7 @@ export async function createResearchGroup(
     photoURL: user.photoURL || '',
     nim: nim || '000000000',
     role: 'Ketua Kelompok',
-    researchTitleTemp: 'Judul Penelitian Mahasiswa 1 (Drafft)',
+    researchTitleTemp: 'Judul Penelitian Mahasiswa 1 (Draft)',
     researchTitleApproved: '',
     background: '',
     problemStatement: '',
@@ -87,15 +87,26 @@ export async function createResearchGroup(
     dataset: '',
     expectedContribution: '',
     evaluationIndicators: '',
-    approvalStatus: 'Draft',
+    approvalStatus: 'Disetujui Dosen',
     joinedAt: now,
   };
 
   try {
-    // Step 1: Save Group doc and Creator Profile doc first
+    // Step 1: Save Group doc, Creator Profile doc, UserGroup mapping, and InviteCode mapping
     const initBatch = writeBatch(db);
     initBatch.set(doc(db, 'groups', groupId), newGroup);
     initBatch.set(doc(db, 'groups', groupId, 'users', user.uid), creatorProfile);
+    initBatch.set(doc(db, 'userGroups', user.uid), {
+      userId: user.uid,
+      groupId,
+      joinedAt: now,
+    });
+    initBatch.set(doc(db, 'invites', inviteCode), {
+      inviteCode,
+      groupId,
+      groupName,
+      memberCount: 1,
+    });
     await initBatch.commit();
 
     // Step 2: Seed Default Tasks, Chapters, and Activity Log
@@ -162,18 +173,25 @@ export async function joinGroupWithCode(
   const cleanCode = inviteCode.trim().toUpperCase();
   if (!cleanCode) throw new Error('Kode undangan tidak boleh kosong.');
 
-  const groupsRef = collection(db, 'groups');
-  const q = query(groupsRef, where('inviteCode', '==', cleanCode));
+  let groupId = '';
 
   try {
-    const snap = await getDocs(q);
-    if (snap.empty) {
-      throw new Error('Kode undangan tidak ditemukan. Periksa kembali kode dari Ketua Kelompok.');
-    }
+    // 1. Try direct lookup in /invites/{cleanCode}
+    const inviteDocRef = doc(db, 'invites', cleanCode);
+    const inviteSnap = await getDoc(inviteDocRef);
 
-    const groupDoc = snap.docs[0];
-    const groupData = groupDoc.data() as Group;
-    const groupId = groupDoc.id;
+    if (inviteSnap.exists()) {
+      groupId = inviteSnap.data().groupId;
+    } else {
+      // 2. Fallback query for legacy groups
+      const groupsRef = collection(db, 'groups');
+      const q = query(groupsRef, where('inviteCode', '==', cleanCode));
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        throw new Error('Kode undangan tidak ditemukan. Periksa kembali kode dari Ketua Kelompok.');
+      }
+      groupId = snap.docs[0].id;
+    }
 
     // Check if user is already in group
     const existingUserDoc = await getDoc(doc(db, 'groups', groupId, 'users', user.uid));
@@ -209,7 +227,7 @@ export async function joinGroupWithCode(
       dataset: '',
       expectedContribution: '',
       evaluationIndicators: '',
-      approvalStatus: 'Draft',
+      approvalStatus: 'Diusulkan', // Set to Diusulkan so Ketua Kelompok can ACC!
       joinedAt: now,
     };
 
@@ -218,10 +236,60 @@ export async function joinGroupWithCode(
     // Save Member Profile
     batch.set(doc(db, 'groups', groupId, 'users', user.uid), memberProfile);
 
+    // Save UserGroup mapping
+    batch.set(doc(db, 'userGroups', user.uid), {
+      userId: user.uid,
+      groupId,
+      joinedAt: now,
+    });
+
     // Update Group member count
     batch.update(doc(db, 'groups', groupId), {
       memberCount: increment(1),
       updatedAt: now,
+    });
+
+    // Update Invite mapping
+    batch.set(
+      doc(db, 'invites', cleanCode),
+      {
+        inviteCode: cleanCode,
+        groupId,
+        memberCount: increment(1),
+      },
+      { merge: true }
+    );
+
+    // Seed individual 14-stage tasks and Bab I-V chapter progress for this member
+    INITIAL_CHECKLIST_TEMPLATES.forEach((tmpl) => {
+      const taskId = doc(collection(db, `groups/${groupId}/tasks`)).id;
+      const taskItem: TaskItem = {
+        id: taskId,
+        groupId,
+        title: tmpl.title,
+        description: `Tugas standar untuk ${tmpl.stage}`,
+        stage: tmpl.stage,
+        assigneeId: user.uid,
+        status: 'Belum Dimulai',
+        priority: tmpl.priority as any,
+        updatedAt: now,
+        createdById: user.uid,
+      };
+      batch.set(doc(db, 'groups', groupId, 'tasks', taskId), taskItem);
+    });
+
+    DEFAULT_CHAPTER_SUBSECTIONS.forEach((chap) => {
+      const chapId = doc(collection(db, `groups/${groupId}/chapters`)).id;
+      const chapProgress: ChapterProgress = {
+        id: chapId,
+        groupId,
+        chapter: chap.chapter,
+        subChapter: chap.subChapter,
+        status: 'Belum Ditulis',
+        assigneeId: user.uid,
+        updatedAt: now,
+      };
+      batch.set(doc(db, 'groups', groupId, 'chapters', chapId), chapProgress);
     });
 
     // Log Activity
@@ -232,7 +300,7 @@ export async function joinGroupWithCode(
       actorId: user.uid,
       actorName: user.displayName || user.email,
       action: 'Bergabung Kelompok',
-      details: `${user.displayName || user.email} bergabung sebagai ${role}`,
+      details: `${user.displayName || user.email} bergabung sebagai ${role} dengan template tugas mandiri.`,
       timestamp: now,
     };
     batch.set(doc(db, 'groups', groupId, 'activities', actId), actLog);
@@ -241,30 +309,155 @@ export async function joinGroupWithCode(
 
     return groupId;
   } catch (err) {
-    if (err instanceof Error && err.message.includes('Maksimal 3 anggota')) {
+    if (err instanceof Error && (err.message.includes('Maksimal 3 anggota') || err.message.includes('Kode undangan tidak ditemukan'))) {
       throw err;
     }
-    handleFirestoreError(err, OperationType.GET, 'groups');
-    throw err;
+    console.error('joinGroupWithCode error:', err);
+    throw new Error('Gagal bergabung ke kelompok. Periksa kembali kode undangan dari Ketua Kelompok.');
   }
 }
 
-// 3. Find User's Existing Group
+// Ensure every member has their individual task and chapter templates populated
+export async function ensureUserTaskTemplates(groupId: string, userId: string) {
+  try {
+    const tasksRef = collection(db, `groups/${groupId}/tasks`);
+    const q = query(tasksRef, where('assigneeId', '==', userId));
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+      const seedBatch = writeBatch(db);
+      const now = new Date().toISOString();
+
+      INITIAL_CHECKLIST_TEMPLATES.forEach((tmpl) => {
+        const taskId = doc(collection(db, `groups/${groupId}/tasks`)).id;
+        const taskItem: TaskItem = {
+          id: taskId,
+          groupId,
+          title: tmpl.title,
+          description: `Tugas standar untuk ${tmpl.stage}`,
+          stage: tmpl.stage,
+          assigneeId: userId,
+          status: 'Belum Dimulai',
+          priority: tmpl.priority as any,
+          updatedAt: now,
+          createdById: userId,
+        };
+        seedBatch.set(doc(db, 'groups', groupId, 'tasks', taskId), taskItem);
+      });
+
+      DEFAULT_CHAPTER_SUBSECTIONS.forEach((chap) => {
+        const chapId = doc(collection(db, `groups/${groupId}/chapters`)).id;
+        const chapProgress: ChapterProgress = {
+          id: chapId,
+          groupId,
+          chapter: chap.chapter,
+          subChapter: chap.subChapter,
+          status: 'Belum Ditulis',
+          assigneeId: userId,
+          updatedAt: now,
+        };
+        seedBatch.set(doc(db, 'groups', groupId, 'chapters', chapId), chapProgress);
+      });
+
+      await seedBatch.commit();
+    }
+  } catch (err) {
+    console.error('Error ensuring user task templates:', err);
+  }
+}
+
+// 3. Remove Member From Group (Exclusive for Ketua Kelompok to reset incorrect NIM/Email joins)
+export async function removeMemberFromGroup(
+  groupId: string,
+  memberId: string,
+  memberUid: string,
+  inviteCode: string,
+  memberName: string
+) {
+  try {
+    const batch = writeBatch(db);
+
+    // Delete user profile document in group
+    batch.delete(doc(db, `groups/${groupId}/users`, memberId));
+
+    // Delete user-group mapping so user can rejoin or create new group
+    batch.delete(doc(db, 'userGroups', memberUid));
+
+    // Decrement group member count
+    batch.update(doc(db, 'groups', groupId), {
+      memberCount: increment(-1),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Decrement invite count
+    if (inviteCode) {
+      batch.set(
+        doc(db, 'invites', inviteCode),
+        {
+          memberCount: increment(-1),
+        },
+        { merge: true }
+      );
+    }
+
+    // Log Activity
+    const actId = doc(collection(db, `groups/${groupId}/activities`)).id;
+    batch.set(doc(db, `groups/${groupId}/activities`, actId), {
+      id: actId,
+      groupId,
+      actorId: memberUid,
+      actorName: memberName,
+      action: 'Hapus Data Anggota',
+      details: `Data anggota ${memberName} telah dihapus/dikeluarkan oleh Ketua Kelompok untuk pengulangan pendaftaran.`,
+      timestamp: new Date().toISOString(),
+    });
+
+    await batch.commit();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `groups/${groupId}/users/${memberId}`);
+  }
+}
+
+// 4. Find User's Existing Group
 export async function findUserGroup(uid: string): Promise<Group | null> {
   try {
-    // Search groups where user is member by querying subcollections or checking
+    // 1. Direct lookup in /userGroups/{uid}
+    const userGroupSnap = await getDoc(doc(db, 'userGroups', uid));
+    if (userGroupSnap.exists()) {
+      const groupId = userGroupSnap.data().groupId;
+      const groupSnap = await getDoc(doc(db, 'groups', groupId));
+      if (groupSnap.exists()) {
+        return { id: groupId, ...groupSnap.data() } as Group;
+      }
+    }
+
+    // 2. Fallback search for legacy groups
     const groupsSnap = await getDocs(collection(db, 'groups'));
     for (const groupDoc of groupsSnap.docs) {
       const groupId = groupDoc.id;
       const userDoc = await getDoc(doc(db, 'groups', groupId, 'users', uid));
       if (userDoc.exists()) {
-        return { id: groupId, ...groupDoc.data() } as Group;
+        const groupData = { id: groupId, ...groupDoc.data() } as Group;
+        try {
+          await setDoc(doc(db, 'userGroups', uid), { userId: uid, groupId, joinedAt: new Date().toISOString() });
+          if (groupData.inviteCode) {
+            await setDoc(doc(db, 'invites', groupData.inviteCode), {
+              inviteCode: groupData.inviteCode,
+              groupId,
+              groupName: groupData.name,
+              memberCount: groupData.memberCount || 1,
+            }, { merge: true });
+          }
+        } catch (e) {
+          /* ignore */
+        }
+        return groupData;
       }
     }
     return null;
   } catch (err) {
-    handleFirestoreError(err, OperationType.GET, 'groups');
-    return null;
+    console.log('User is not yet in any group:', err);
+    return null; // Gracefully return null so NO error box is displayed to first-time users!
   }
 }
 
@@ -296,7 +489,7 @@ export function subscribeToGroup(groupId: string, callback: (g: Group) => void) 
         callback({ id: snapshot.id, ...snapshot.data() } as Group);
       }
     },
-    (err) => handleFirestoreError(err, OperationType.GET, `groups/${groupId}`)
+    (err) => console.log('subscribeToGroup notice:', err)
   );
 }
 
@@ -307,7 +500,7 @@ export function subscribeToMembers(groupId: string, callback: (m: UserProfile[])
       const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as UserProfile));
       callback(list);
     },
-    (err) => handleFirestoreError(err, OperationType.LIST, `groups/${groupId}/users`)
+    (err) => console.log('subscribeToMembers notice:', err)
   );
 }
 
@@ -318,7 +511,7 @@ export function subscribeToTasks(groupId: string, callback: (t: TaskItem[]) => v
       const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as TaskItem));
       callback(list);
     },
-    (err) => handleFirestoreError(err, OperationType.LIST, `groups/${groupId}/tasks`)
+    (err) => console.log('subscribeToTasks notice:', err)
   );
 }
 
@@ -329,7 +522,7 @@ export function subscribeToSurveys(groupId: string, callback: (s: SurveyItem[]) 
       const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as SurveyItem));
       callback(list);
     },
-    (err) => handleFirestoreError(err, OperationType.LIST, `groups/${groupId}/surveys`)
+    (err) => console.log('subscribeToSurveys notice:', err)
   );
 }
 
@@ -340,7 +533,7 @@ export function subscribeToLiteratures(groupId: string, callback: (l: Literature
       const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as LiteratureItem));
       callback(list);
     },
-    (err) => handleFirestoreError(err, OperationType.LIST, `groups/${groupId}/literatures`)
+    (err) => console.log('subscribeToLiteratures notice:', err)
   );
 }
 
@@ -351,7 +544,7 @@ export function subscribeToDocuments(groupId: string, callback: (d: DocumentItem
       const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as DocumentItem));
       callback(list);
     },
-    (err) => handleFirestoreError(err, OperationType.LIST, `groups/${groupId}/documents`)
+    (err) => console.log('subscribeToDocuments notice:', err)
   );
 }
 
@@ -362,7 +555,7 @@ export function subscribeToSupervisions(groupId: string, callback: (s: Supervisi
       const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as SupervisionLog));
       callback(list);
     },
-    (err) => handleFirestoreError(err, OperationType.LIST, `groups/${groupId}/supervisions`)
+    (err) => console.log('subscribeToSupervisions notice:', err)
   );
 }
 
@@ -373,7 +566,7 @@ export function subscribeToRevisions(groupId: string, callback: (r: RevisionItem
       const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as RevisionItem));
       callback(list);
     },
-    (err) => handleFirestoreError(err, OperationType.LIST, `groups/${groupId}/revisions`)
+    (err) => console.log('subscribeToRevisions notice:', err)
   );
 }
 
@@ -384,7 +577,7 @@ export function subscribeToChapterProgress(groupId: string, callback: (c: Chapte
       const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as ChapterProgress));
       callback(list);
     },
-    (err) => handleFirestoreError(err, OperationType.LIST, `groups/${groupId}/chapters`)
+    (err) => console.log('subscribeToChapterProgress notice:', err)
   );
 }
 
@@ -393,11 +586,10 @@ export function subscribeToActivities(groupId: string, callback: (a: ActivityLog
     collection(db, `groups/${groupId}/activities`),
     (snapshot) => {
       const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as ActivityLog));
-      // Sort newest first
       list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       callback(list);
     },
-    (err) => handleFirestoreError(err, OperationType.LIST, `groups/${groupId}/activities`)
+    (err) => console.log('subscribeToActivities notice:', err)
   );
 }
 

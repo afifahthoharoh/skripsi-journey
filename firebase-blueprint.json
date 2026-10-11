@@ -1,5 +1,28 @@
 {
   "entities": {
+    "UserGroupMapping": {
+      "title": "UserGroupMapping",
+      "description": "User to group lookup document",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "groupId": { "type": "string" },
+        "joinedAt": { "type": "string" }
+      },
+      "required": ["userId", "groupId"]
+    },
+    "InviteCodeMapping": {
+      "title": "InviteCodeMapping",
+      "description": "Invite code to group lookup document",
+      "type": "object",
+      "properties": {
+        "inviteCode": { "type": "string" },
+        "groupId": { "type": "string" },
+        "groupName": { "type": "string" },
+        "memberCount": { "type": "number" }
+      },
+      "required": ["inviteCode", "groupId"]
+    },
     "Group": {
       "title": "Group",
       "description": "Research Group for 3 students",
@@ -223,6 +246,14 @@
     }
   },
   "firestore": {
+    "/userGroups/{userId}": {
+      "schema": { "$ref": "#/entities/UserGroupMapping" },
+      "description": "Direct user ID to group ID lookup document"
+    },
+    "/invites/{inviteCode}": {
+      "schema": { "$ref": "#/entities/InviteCodeMapping" },
+      "description": "Direct invite code to group ID lookup document"
+    },
     "/groups/{groupId}": {
       "schema": { "$ref": "#/entities/Group" },
       "description": "Main research group collection"

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuthGroup } from '../context/AuthGroupContext';
 import { STAGES_LIST } from '../data/defaultChecklists';
-import { GitFork, List, LayoutGrid, CheckCircle2, Clock, AlertCircle, Plus, Calendar, User } from 'lucide-react';
+import { GitFork, List, LayoutGrid, CheckCircle2, Clock, AlertCircle, Plus, Calendar, User, Users, ChevronRight } from 'lucide-react';
 import { TaskItem } from '../types/skripsi';
 import { saveTask, logActivity } from '../services/firestoreService';
 
@@ -9,14 +9,21 @@ export const MindMapView: React.FC = () => {
   const { group, tasks, members, currentUser } = useAuthGroup();
   const [selectedStage, setSelectedStage] = useState<string | null>(STAGES_LIST[0].name);
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
+  const [selectedMemberId, setSelectedMemberId] = useState<string>('all');
 
   const [modalOpen, setModalOpen] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskAssignee, setNewTaskAssignee] = useState('all');
 
+  // Filter tasks based on selected member or all
+  const filteredTasksByMember = tasks.filter((t) => {
+    if (selectedMemberId === 'all') return true;
+    return t.assigneeId === selectedMemberId || t.assigneeId === 'all';
+  });
+
   // Map each stage to its tasks and calculate node status
   const getStageNodeStatus = (stageName: string) => {
-    const stageTasks = tasks.filter((t) => t.stage === stageName);
+    const stageTasks = filteredTasksByMember.filter((t) => t.stage === stageName);
     if (stageTasks.length === 0) return { status: 'Belum Dimulai', color: 'bg-slate-100 text-slate-600 border-slate-300' };
     const completed = stageTasks.filter((t) => t.status === 'Selesai').length;
     if (completed === stageTasks.length) return { status: 'Selesai', color: 'bg-emerald-100 text-emerald-800 border-emerald-400' };
@@ -81,6 +88,48 @@ export const MindMapView: React.FC = () => {
           >
             <List className="w-4 h-4" /> Tampilan Daftar (HP)
           </button>
+        </div>
+      </div>
+
+      {/* Student Progress Inspection Filter Bar */}
+      <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 bg-emerald-100/80 rounded-xl text-[#1b4332]">
+            <Users className="w-5 h-5 text-[#2d6a4f]" />
+          </div>
+          <div>
+            <h3 className="font-serif font-bold text-sm text-[#081c15]">Pemantauan Progress Anggota</h3>
+            <p className="text-[11px] text-slate-500">
+              Pilih nama anggota untuk memantau posisi tahapan Mind Map & progres tugas mereka tanpa harus menanyakan langsung.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 shrink-0">
+          <button
+            onClick={() => setSelectedMemberId('all')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+              selectedMemberId === 'all'
+                ? 'bg-[#1b4332] text-white shadow-2xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            Seluruh Kelompok
+          </button>
+          {members.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setSelectedMemberId(m.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+                selectedMemberId === m.id
+                  ? 'bg-[#588157] text-white shadow-2xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <span>{m.displayName}</span>
+              <span className="text-[10px] opacity-80 font-bold">({m.role})</span>
+            </button>
+          ))}
         </div>
       </div>
 

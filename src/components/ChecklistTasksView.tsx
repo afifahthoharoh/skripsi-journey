@@ -17,10 +17,11 @@ import {
   Clock,
   AlertCircle,
   X,
+  Lock,
 } from 'lucide-react';
 
 export const ChecklistTasksView: React.FC = () => {
-  const { group, tasks, members, currentUser } = useAuthGroup();
+  const { group, tasks, members, currentUser, currentUserProfile } = useAuthGroup();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStage, setSelectedStage] = useState<string>('all');
@@ -43,11 +44,19 @@ export const ChecklistTasksView: React.FC = () => {
   const [evidenceUrl, setEvidenceUrl] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Check ownership: Members can ONLY toggle/edit/delete their own task
+  const canModifyTask = (task: TaskItem): boolean => {
+    if (!currentUser) return false;
+    if (task.assigneeId === currentUser.uid) return true;
+    if (task.assigneeId === 'all' && (task.createdById === currentUser.uid || currentUserProfile?.role === 'Ketua Kelompok' || group?.creatorId === currentUser.uid)) return true;
+    return false;
+  };
+
   const openCreateModal = () => {
     setEditingTask(null);
     setTitle('');
     setStage(selectedStage !== 'all' ? selectedStage : STAGES_LIST[0].name);
-    setAssigneeId('all');
+    setAssigneeId(currentUser?.uid || 'all');
     setStatus('Belum Dimulai');
     setPriority('Sedang');
     setStartDate('');
@@ -59,6 +68,12 @@ export const ChecklistTasksView: React.FC = () => {
   };
 
   const openEditModal = (task: TaskItem) => {
+    const assigneeMember = members.find((m) => m.id === task.assigneeId);
+    if (!canModifyTask(task)) {
+      alert(`Akses Ditolak: Anda tidak dapat mengubah tugas anggota lain (${assigneeMember?.displayName || 'Anggota lain'}). Setiap anggota wajib mengelola tugasnya masing-masing.`);
+      return;
+    }
+
     setEditingTask(task);
     setTitle(task.title);
     setStage(task.stage);
@@ -106,14 +121,27 @@ export const ChecklistTasksView: React.FC = () => {
     setModalOpen(false);
   };
 
-  const handleDeleteTask = async (taskId: string, taskTitle: string) => {
-    if (!group || !confirm(`Apakah Anda yakin ingin menghapus tugas "${taskTitle}"?`)) return;
-    await deleteTask(group.id, taskId);
-    await logActivity(group.id, currentUser?.displayName || 'Mahasiswa', currentUser?.uid || '', 'Hapus Tugas', `Menghapus tugas "${taskTitle}"`);
+  const handleDeleteTask = async (task: TaskItem) => {
+    if (!group) return;
+    const assigneeMember = members.find((m) => m.id === task.assigneeId);
+    if (!canModifyTask(task)) {
+      alert(`Akses Ditolak: Anda tidak dapat menghapus tugas milik ${assigneeMember?.displayName || 'Anggota lain'}.`);
+      return;
+    }
+
+    if (!confirm(`Apakah Anda yakin ingin menghapus tugas "${task.title}"?`)) return;
+    await deleteTask(group.id, task.id);
+    await logActivity(group.id, currentUser?.displayName || 'Mahasiswa', currentUser?.uid || '', 'Hapus Tugas', `Menghapus tugas "${task.title}"`);
   };
 
   const handleQuickToggleStatus = async (task: TaskItem) => {
     if (!group) return;
+    const assigneeMember = members.find((m) => m.id === task.assigneeId);
+    if (!canModifyTask(task)) {
+      alert(`Akses Ditolak: Anda tidak dapat menceklis tugas milik ${assigneeMember?.displayName || 'Anggota lain'}. Setiap anggota wajib menceklis tugasnya sendiri.`);
+      return;
+    }
+
     const nextStatus: TaskStatus = task.status === 'Selesai' ? 'Dikerjakan' : 'Selesai';
     const updatedTask = { ...task, status: nextStatus, updatedAt: new Date().toISOString() };
     await saveTask(group.id, updatedTask);
@@ -155,9 +183,39 @@ export const ChecklistTasksView: React.FC = () => {
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-        <div className="flex items-center gap-2 text-xs font-bold text-[#081c15]">
-          <Filter className="w-4 h-4 text-[#2d6a4f]" /> Filter & Pencarian
+      <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs font-bold text-[#081c15]">
+            <Filter className="w-4 h-4 text-[#2d6a4f]" /> Filter & Pemantauan Tugas Anggota
+          </div>
+
+          {/* Student Filter Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+            <button
+              onClick={() => setSelectedAssignee('all')}
+              className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                selectedAssignee === 'all'
+                  ? 'bg-[#1b4332] text-white shadow-2xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              Semua Anggota
+            </button>
+            {members.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setSelectedAssignee(m.id)}
+                className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-1 ${
+                  selectedAssignee === m.id
+                    ? 'bg-[#588157] text-white shadow-2xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <span>{m.displayName}</span>
+                <span className="text-[10px] opacity-80">({m.role})</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
@@ -246,6 +304,7 @@ export const ChecklistTasksView: React.FC = () => {
             {filteredTasks.map((t) => {
               const assigneeMember = members.find((m) => m.id === t.assigneeId);
               const isDone = t.status === 'Selesai';
+              const isEditable = canModifyTask(t);
 
               return (
                 <div
@@ -257,13 +316,24 @@ export const ChecklistTasksView: React.FC = () => {
                   <div className="flex items-start gap-3.5 max-w-2xl">
                     <button
                       onClick={() => handleQuickToggleStatus(t)}
+                      title={
+                        isEditable
+                          ? 'Klik untuk mengubah status selesai'
+                          : `Hanya ${assigneeMember?.displayName || 'pemilik tugas'} yang dapat menceklis tugas ini`
+                      }
                       className={`mt-0.5 shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition ${
                         isDone
                           ? 'bg-[#2d6a4f] border-[#2d6a4f] text-white'
-                          : 'border-slate-300 hover:border-[#2d6a4f]'
+                          : isEditable
+                          ? 'border-slate-300 hover:border-[#2d6a4f]'
+                          : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
                       }`}
                     >
-                      {isDone && <CheckCircle2 className="w-4 h-4" />}
+                      {isDone ? (
+                        <CheckCircle2 className="w-4 h-4" />
+                      ) : !isEditable ? (
+                        <Lock className="w-3 h-3 text-slate-400" />
+                      ) : null}
                     </button>
 
                     <div className="space-y-1">
@@ -278,6 +348,11 @@ export const ChecklistTasksView: React.FC = () => {
                         >
                           {t.title}
                         </h4>
+                        {!isEditable && (
+                          <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium flex items-center gap-1 border border-slate-200">
+                            <Lock className="w-2.5 h-2.5" /> Milik {assigneeMember?.displayName || 'Anggota Lain'}
+                          </span>
+                        )}
                       </div>
 
                       {t.description && (
@@ -340,18 +415,31 @@ export const ChecklistTasksView: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => openEditModal(t)}
-                        className="p-1.5 text-slate-500 hover:text-[#1b4332] hover:bg-emerald-50 rounded-lg transition"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTask(t.id, t.title)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {isEditable ? (
+                        <>
+                          <button
+                            onClick={() => openEditModal(t)}
+                            title="Edit tugas"
+                            className="p-1.5 text-slate-500 hover:text-[#1b4332] hover:bg-emerald-50 rounded-lg transition"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTask(t)}
+                            title="Hapus tugas"
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <span
+                          title={`Hanya ${assigneeMember?.displayName || 'pemilik tugas'} yang dapat mengedit tugas ini`}
+                          className="p-1.5 text-slate-300 cursor-not-allowed"
+                        >
+                          <Lock className="w-4 h-4" />
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

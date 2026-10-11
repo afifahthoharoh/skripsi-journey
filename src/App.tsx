@@ -5,6 +5,7 @@ import { Navigation, ActiveTab } from './components/Navigation';
 
 import { DashboardView } from './components/DashboardView';
 import { MindMapView } from './components/MindMapView';
+import { IndividualMemberTasksView } from './components/IndividualMemberTasksView';
 import { ChecklistTasksView } from './components/ChecklistTasksView';
 import { ThemeDivisionView } from './components/ThemeDivisionView';
 import { FieldSurveyView } from './components/FieldSurveyView';
@@ -22,6 +23,7 @@ import { GroupSettingsView } from './components/GroupSettingsView';
 function MainAppContent() {
   const { currentUser, group, loadingAuth } = useAuthGroup();
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  const [selectedMemberIdForTask, setSelectedMemberIdForTask] = useState<string>('');
 
   if (loadingAuth) {
     return (
@@ -43,6 +45,13 @@ function MainAppContent() {
         return <DashboardView onNavigate={(tab) => setActiveTab(tab)} />;
       case 'mindmap':
         return <MindMapView />;
+      case 'individual_task':
+        return (
+          <IndividualMemberTasksView
+            memberId={selectedMemberIdForTask}
+            onSelectMemberId={(id) => setSelectedMemberIdForTask(id)}
+          />
+        );
       case 'checklist':
         return <ChecklistTasksView />;
       case 'theme':
@@ -77,7 +86,12 @@ function MainAppContent() {
   return (
     <div className="min-h-screen bg-[#faf9f5] flex">
       {/* Navigation Sidebar */}
-      <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Navigation
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        selectedMemberId={selectedMemberIdForTask}
+        setSelectedMemberId={setSelectedMemberIdForTask}
+      />
 
       {/* Main Content Area */}
       <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8 pt-20 lg:pt-8 max-w-7xl mx-auto w-full">

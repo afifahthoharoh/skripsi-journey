@@ -17,6 +17,7 @@ import {
   findUserGroup,
   createResearchGroup,
   joinGroupWithCode,
+  ensureUserTaskTemplates,
   subscribeToGroup,
   subscribeToMembers,
   subscribeToTasks,
@@ -98,6 +99,10 @@ export const AuthGroupProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Real-time Firestore Listeners when Group is active
   useEffect(() => {
     if (!group?.id) return;
+
+    if (currentUser?.uid) {
+      ensureUserTaskTemplates(group.id, currentUser.uid);
+    }
 
     const unsubGroup = subscribeToGroup(group.id, (g) => setGroup(g));
     const unsubMembers = subscribeToMembers(group.id, (m) => setMembers(m));
