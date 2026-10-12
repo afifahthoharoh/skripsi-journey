@@ -378,47 +378,60 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {members.map((member, idx) => {
-            const prog = getStudentProgress(member.id);
+            const memberTasks = tasks.filter((t) => t.assigneeId === member.id || t.assigneeId === member.uid);
+            const memberDone = memberTasks.filter((t) => t.status === 'Selesai').length;
+            const memberTotal = memberTasks.length;
+            const prog = memberTotal > 0 ? Math.round((memberDone / memberTotal) * 100) : 0;
+
             return (
               <div
                 key={member.id}
-                className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition space-y-3 relative overflow-hidden"
+                className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition space-y-3 relative overflow-hidden flex flex-col justify-between"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#1b4332] font-bold flex items-center justify-center text-sm border border-emerald-200">
-                      {member.displayName?.charAt(0) || `M${idx + 1}`}
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#1b4332] font-bold flex items-center justify-center text-sm border border-emerald-200">
+                        {member.displayName?.charAt(0) || `M${idx + 1}`}
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-sm text-slate-900 truncate max-w-[150px]">
+                          {member.displayName}
+                        </h4>
+                        <p className="text-[11px] text-slate-500">NIM: {member.nim || '—'}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-sm text-slate-900 truncate max-w-[150px]">
-                        {member.displayName}
-                      </h4>
-                      <p className="text-[11px] text-slate-500">{member.nim || 'NIM belum diisi'}</p>
+                    <span className="px-2.5 py-0.5 rounded-full bg-[#d4af37]/15 text-[#c59b27] font-semibold text-[10px] border border-[#d4af37]/30 shrink-0">
+                      {member.role}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="text-[11px] font-medium text-slate-600 line-clamp-2 italic bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      &ldquo;{member.researchTitleApproved || member.researchTitleTemp || 'Judul penelitian belum ditentukan'}&rdquo;
                     </div>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#d4af37]/15 text-[#c59b27] font-semibold text-[10px] border border-[#d4af37]/30 shrink-0">
-                    {member.role}
-                  </span>
+
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span className="text-slate-600">Progres Mapping Map</span>
+                      <span className="text-[#1b4332]">{prog}% ({memberDone}/{memberTotal} Selesai)</span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-[#2d6a4f] h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${prog}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <div className="text-[11px] font-medium text-slate-600 line-clamp-2 italic bg-slate-50 p-2 rounded-lg border border-slate-100">
-                    &ldquo;{member.researchTitleApproved || member.researchTitleTemp || 'Judul penelitian belum ditentukan'}&rdquo;
-                  </div>
-                </div>
-
-                <div className="space-y-1.5 pt-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-600 font-medium">Progress Individu</span>
-                    <span className="font-bold text-[#1b4332]">{prog}%</span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="bg-[#2d6a4f] h-2 rounded-full transition-all duration-500"
-                      style={{ width: `${prog}%` }}
-                    />
-                  </div>
-                </div>
+                <button
+                  onClick={() => onNavigate('individual_task')}
+                  className="w-full py-2 mt-2 bg-slate-50 hover:bg-emerald-50 text-[#1b4332] font-semibold rounded-xl text-xs border border-slate-200 hover:border-emerald-200 transition flex items-center justify-center gap-1"
+                >
+                  Pantau Tugas {member.displayName} &rarr;
+                </button>
               </div>
             );
           })}

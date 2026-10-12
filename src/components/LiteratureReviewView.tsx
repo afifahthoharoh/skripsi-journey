@@ -2,13 +2,27 @@ import React, { useState } from 'react';
 import { useAuthGroup } from '../context/AuthGroupContext';
 import { LiteratureItem } from '../types/skripsi';
 import { saveLiteratureItem, deleteLiteratureItem, logActivity } from '../services/firestoreService';
-import { FileText, Plus, Search, ExternalLink, Download, Trash2, Edit3, X, CheckCircle, BookOpen } from 'lucide-react';
+import {
+  FileText,
+  Plus,
+  Search,
+  ExternalLink,
+  Download,
+  Trash2,
+  Edit3,
+  X,
+  BookOpen,
+  User,
+  Lock,
+  Layers,
+  Sparkles,
+} from 'lucide-react';
 
 export const LiteratureReviewView: React.FC = () => {
-  const { group, literatures, members, currentUser } = useAuthGroup();
+  const { group, literatures, members, currentUser, currentUserProfile } = useAuthGroup();
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [memberFilter, setMemberFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState<string>('all'); // 'all' or member.id
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingLit, setEditingLit] = useState<LiteratureItem | null>(null);
@@ -29,7 +43,9 @@ export const LiteratureReviewView: React.FC = () => {
   const [verificationStatus, setVerificationStatus] = useState<any>('Sangat Relevan');
   const [relevanceForUserId, setRelevanceForUserId] = useState('all');
 
-  const openCreateModal = () => {
+  const selectedMemberObj = members.find((m) => m.id === activeTab || m.uid === activeTab);
+
+  const openCreateModal = (targetMemberId?: string) => {
     setEditingLit(null);
     setAuthors('');
     setYear(new Date().getFullYear());
@@ -44,11 +60,17 @@ export const LiteratureReviewView: React.FC = () => {
     setResearchGap('');
     setRelationToGroup('');
     setVerificationStatus('Sangat Relevan');
-    setRelevanceForUserId('all');
+    setRelevanceForUserId(targetMemberId || (activeTab !== 'all' ? activeTab : currentUser?.uid || 'all'));
     setModalOpen(true);
   };
 
   const openEditModal = (item: LiteratureItem) => {
+    const isOwner = item.createdById === currentUser?.uid || item.relevanceForUserId === currentUser?.uid || currentUserProfile?.role === 'Ketua Kelompok' || group?.creatorId === currentUser?.uid;
+    if (!isOwner) {
+      alert('Akses Ditolak: Anda hanya dapat mengedit referensi/research gap yang Anda tambahkan sendiri.');
+      return;
+    }
+
     setEditingLit(item);
     setAuthors(item.authors);
     setYear(item.year);
@@ -103,16 +125,23 @@ export const LiteratureReviewView: React.FC = () => {
     setModalOpen(false);
   };
 
-  const handleDeleteLit = async (id: string, t: string) => {
-    if (!group || !confirm(`Hapus referensi jurnal "${t}"?`)) return;
-    await deleteLiteratureItem(group.id, id);
-    await logActivity(group.id, currentUser?.displayName || 'Mahasiswa', currentUser?.uid || '', 'Hapus Jurnal', `Menghapus referensi "${t}"`);
+  const handleDeleteLit = async (item: LiteratureItem) => {
+    if (!group) return;
+    const isOwner = item.createdById === currentUser?.uid || item.relevanceForUserId === currentUser?.uid || currentUserProfile?.role === 'Ketua Kelompok' || group?.creatorId === currentUser?.uid;
+    if (!isOwner) {
+      alert('Akses Ditolak: Anda hanya dapat menghapus referensi yang Anda tambahkan.');
+      return;
+    }
+
+    if (!confirm(`Hapus referensi jurnal "${item.title}"?`)) return;
+    await deleteLiteratureItem(group.id, item.id);
+    await logActivity(group.id, currentUser?.displayName || 'Mahasiswa', currentUser?.uid || '', 'Hapus Jurnal', `Menghapus referensi "${item.title}"`);
   };
 
   // CSV Export Helper
   const exportToCSV = () => {
     if (literatures.length === 0) return;
-    const headers = ['Penulis', 'Tahun', 'Judul Jurnal', 'Venue/Jurnal', 'Objek', 'Metode', 'Hasil Utama', 'Research Gap', 'Relevansi'];
+    const headers = ['Penulis', 'Tahun', 'Judul Jurnal', 'Venue/Jurnal', 'Objek', 'Metode', 'Hasil Utama', 'Research Gap', 'Relevansi Mahasiswa'];
     const rows = literatures.map((l) => [
       `"${l.authors}"`,
       l.year,
@@ -122,7 +151,7 @@ export const LiteratureReviewView: React.FC = () => {
       `"${l.method}"`,
       `"${l.results}"`,
       `"${l.researchGap}"`,
-      `"${l.relationToGroup}"`,
+      `"${members.find((m) => m.id === l.relevanceForUserId || m.uid === l.relevanceForUserId)?.displayName || 'Seluruh Kelompok'}"`,
     ]);
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
@@ -135,18 +164,24 @@ export const LiteratureReviewView: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  // Filter literatures for active tab & search term
   const filteredLits = literatures.filter((l) => {
     const matchesSearch =
       l.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       l.authors.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      l.method.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesMember = memberFilter === 'all' || l.relevanceForUserId === memberFilter;
+      l.method.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      l.researchGap.toLowerCase().includes(searchTerm.toLowerCase());
+
+    if (activeTab === 'all') {
+      return matchesSearch;
+    }
+    const matchesMember = l.relevanceForUserId === activeTab || l.createdById === activeTab;
     return matchesSearch && matchesMember;
   });
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Header */}
+      {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h1 className="font-serif font-bold text-2xl text-[#081c15] flex items-center gap-2">
@@ -154,7 +189,7 @@ export const LiteratureReviewView: React.FC = () => {
             Matriks Penelitian Terdahulu & Research Gap
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Matriks komparasi referensi ilmiah 2022–2026, metode, keterbatasan, dan penentuan novelty.
+            Setiap anggota memiliki tabel terpisah agar matriks jurnal & temuan research gap tidak tertumpuk, namun tetap transparan dan dapat saling dipantau.
           </p>
         </div>
 
@@ -168,7 +203,7 @@ export const LiteratureReviewView: React.FC = () => {
           </button>
 
           <button
-            onClick={openCreateModal}
+            onClick={() => openCreateModal()}
             className="flex items-center gap-2 px-4 py-2.5 bg-[#1b4332] hover:bg-[#081c15] text-white rounded-xl text-xs font-semibold shadow-sm transition"
           >
             <Plus className="w-4 h-4 text-[#d4af37]" /> Tambah Jurnal
@@ -176,42 +211,118 @@ export const LiteratureReviewView: React.FC = () => {
         </div>
       </div>
 
-      {/* Search & Filter Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row gap-3">
+      {/* Member Tabs Bar */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-[#081c15] flex items-center gap-1.5">
+            <User className="w-4 h-4 text-[#2d6a4f]" />
+            Pilih Tabel Matriks Mahasiswa:
+          </span>
+          <span className="text-[11px] text-slate-500 hidden sm:inline">
+            Klik nama anggota untuk melihat matriks & research gap spesifik
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <button
+            onClick={() => setActiveTab('all')}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+              activeTab === 'all'
+                ? 'bg-[#1b4332] text-white shadow-sm'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5 text-[#d4af37]" />
+            <span>Semua Matriks Kelompok</span>
+            <span className="px-1.5 py-0.2 text-[10px] bg-white/20 rounded font-mono">
+              {literatures.length}
+            </span>
+          </button>
+
+          {members.map((m) => {
+            const count = literatures.filter((l) => l.relevanceForUserId === m.id || l.createdById === m.uid || l.relevanceForUserId === m.uid).length;
+            const isMe = m.uid === currentUser?.uid || m.id === currentUser?.uid;
+
+            return (
+              <button
+                key={m.id || m.uid}
+                onClick={() => setActiveTab(m.id || m.uid)}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-2 ${
+                  activeTab === (m.id || m.uid)
+                    ? 'bg-[#2d6a4f] text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <span>Matriks {m.displayName}</span>
+                {isMe && <span className="text-[10px] bg-[#d4af37] text-[#081c15] px-1.5 rounded font-bold">Saya</span>}
+                <span className="px-1.5 py-0.2 text-[10px] bg-black/10 rounded font-mono">
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Selected Member Header Card (If viewing a specific member tab) */}
+      {selectedMemberObj && (
+        <div className="bg-gradient-to-r from-emerald-900 to-[#1b4332] p-5 rounded-2xl text-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-emerald-700">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <h2 className="font-serif font-bold text-lg text-white">
+                Tabel Matriks & Research Gap: {selectedMemberObj.displayName}
+              </h2>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#d4af37] text-[#081c15]">
+                {selectedMemberObj.role}
+              </span>
+            </div>
+            <p className="text-xs text-emerald-100 line-clamp-1 italic">
+              Judul Penelitian: &ldquo;{selectedMemberObj.researchTitleApproved || selectedMemberObj.researchTitleTemp || 'Draft'}&rdquo;
+            </p>
+          </div>
+
+          <button
+            onClick={() => openCreateModal(selectedMemberObj.id || selectedMemberObj.uid)}
+            className="px-3.5 py-2 bg-[#d4af37] hover:bg-amber-400 text-[#081c15] font-bold rounded-xl text-xs flex items-center gap-1.5 shrink-0 transition shadow-2xs"
+          >
+            <Plus className="w-4 h-4" /> Tambah Jurnal untuk {selectedMemberObj.displayName}
+          </button>
+        </div>
+      )}
+
+      {/* Search Bar */}
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           <input
             type="text"
-            placeholder="Cari judul, penulis, metode, atau kata kunci..."
+            placeholder="Cari kata kunci di judul, penulis, metode, atau research gap..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-[#2d6a4f]"
           />
         </div>
-
-        <select
-          value={memberFilter}
-          onChange={(e) => setMemberFilter(e.target.value)}
-          className="px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-[#2d6a4f]"
-        >
-          <option value="all">Semua Mahasiswa</option>
-          {members.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.displayName} ({m.role})
-            </option>
-          ))}
-        </select>
       </div>
 
       {/* Literature Matrix Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         {filteredLits.length === 0 ? (
-          <div className="p-8 text-center space-y-2">
+          <div className="p-10 text-center space-y-2">
             <BookOpen className="w-10 h-10 text-slate-300 mx-auto" />
-            <p className="text-sm font-semibold text-slate-700">Belum ada jurnal/referensi dalam matriks</p>
-            <p className="text-xs text-slate-500">
-              Tambahkan referensi publikasi ilmiah 2022–2026 untuk memetakan novelty dan research gap.
+            <p className="text-sm font-semibold text-slate-700">
+              {activeTab === 'all'
+                ? 'Belum ada referensi dalam matriks penelitian'
+                : `Belum ada jurnal/research gap untuk ${selectedMemberObj?.displayName}`}
             </p>
+            <p className="text-xs text-slate-500 max-w-md mx-auto">
+              Tambahkan publikasi ilmiah 2022–2026 untuk memetakan objek, metode, hasil, dan kebaruan (novelty) skripsi.
+            </p>
+            <button
+              onClick={() => openCreateModal(activeTab !== 'all' ? activeTab : undefined)}
+              className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-[#1b4332] text-white rounded-xl text-xs font-semibold hover:bg-[#081c15]"
+            >
+              <Plus className="w-4 h-4 text-[#d4af37]" /> Tambah Referensi Baru
+            </button>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -220,16 +331,24 @@ export const LiteratureReviewView: React.FC = () => {
                 <tr className="bg-[#081c15] text-white font-serif border-b border-[#1b4332]">
                   <th className="p-3.5 font-semibold w-48">Penulis & Tahun</th>
                   <th className="p-3.5 font-semibold min-w-[220px]">Judul & Publisher</th>
-                  <th className="p-3.5 font-semibold w-36">Objek & Data</th>
+                  <th className="p-3.5 font-semibold w-40">Objek & Data</th>
                   <th className="p-3.5 font-semibold w-36">Metode</th>
-                  <th className="p-3.5 font-semibold min-w-[200px]">Hasil Utama & Research Gap</th>
-                  <th className="p-3.5 font-semibold w-36">Relevansi Mahasiswa</th>
+                  <th className="p-3.5 font-semibold min-w-[220px]">Hasil & Research Gap</th>
+                  <th className="p-3.5 font-semibold w-36">Pemilik Matriks</th>
                   <th className="p-3.5 font-semibold text-right w-20">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {filteredLits.map((item) => {
-                  const relMember = members.find((m) => m.id === item.relevanceForUserId);
+                  const relMember = members.find(
+                    (m) => m.id === item.relevanceForUserId || m.uid === item.relevanceForUserId || m.uid === item.createdById
+                  );
+                  const isEditable =
+                    item.createdById === currentUser?.uid ||
+                    item.relevanceForUserId === currentUser?.uid ||
+                    currentUserProfile?.role === 'Ketua Kelompok' ||
+                    group?.creatorId === currentUser?.uid;
+
                   return (
                     <tr key={item.id} className="hover:bg-emerald-50/30 transition">
                       <td className="p-3.5 font-medium text-slate-900 align-top">
@@ -253,8 +372,12 @@ export const LiteratureReviewView: React.FC = () => {
                       </td>
 
                       <td className="p-3.5 text-slate-700 align-top space-y-1">
-                        <div><strong>Objek:</strong> {item.researchObject}</div>
-                        <div className="text-[11px] text-slate-500">{item.datasetCharacteristics}</div>
+                        <div>
+                          <strong>Objek:</strong> {item.researchObject}
+                        </div>
+                        {item.datasetCharacteristics && (
+                          <div className="text-[11px] text-slate-500">{item.datasetCharacteristics}</div>
+                        )}
                       </td>
 
                       <td className="p-3.5 align-top">
@@ -263,10 +386,15 @@ export const LiteratureReviewView: React.FC = () => {
                         </span>
                       </td>
 
-                      <td className="p-3.5 text-slate-700 align-top space-y-1">
-                        <div><strong>Hasil:</strong> {item.results}</div>
-                        <div className="text-amber-900 bg-amber-50 p-1.5 rounded border border-amber-200 text-[11px]">
-                          <strong>Gap:</strong> {item.researchGap}
+                      <td className="p-3.5 text-slate-700 align-top space-y-1.5">
+                        <div className="text-slate-800">
+                          <strong>Hasil:</strong> {item.results}
+                        </div>
+                        <div className="text-amber-950 bg-amber-50 p-2 rounded-xl border border-amber-200 text-[11px] space-y-0.5">
+                          <div className="font-bold text-amber-900 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-amber-600" /> Research Gap / Novelty:
+                          </div>
+                          <div>{item.researchGap}</div>
                         </div>
                       </td>
 
@@ -274,23 +402,36 @@ export const LiteratureReviewView: React.FC = () => {
                         <span className="text-[11px] font-semibold text-[#1b4332] block">
                           {relMember?.displayName || 'Seluruh Kelompok'}
                         </span>
-                        <span className="text-[10px] text-slate-500">{item.relationToGroup}</span>
+                        <span className="text-[10px] text-slate-500">{relMember?.role || 'Kelompok'}</span>
                       </td>
 
                       <td className="p-3.5 align-top text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => openEditModal(item)}
-                            className="p-1.5 text-slate-500 hover:text-[#1b4332] rounded"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteLit(item.id, item.title)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 rounded"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {isEditable ? (
+                            <>
+                              <button
+                                onClick={() => openEditModal(item)}
+                                title="Edit jurnal"
+                                className="p-1.5 text-slate-500 hover:text-[#1b4332] hover:bg-emerald-50 rounded-lg transition"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteLit(item)}
+                                title="Hapus jurnal"
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <span
+                              title={`Tabel matriks ini dikelola oleh ${relMember?.displayName || 'pemilik'}`}
+                              className="p-1.5 text-slate-300"
+                            >
+                              <Lock className="w-4 h-4" />
+                            </span>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -311,7 +452,7 @@ export const LiteratureReviewView: React.FC = () => {
           >
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-serif font-bold text-lg text-[#081c15]">
-                {editingLit ? 'Edit Referensi Jurnal' : 'Tambah Referensi Jurnal Terdahulu'}
+                {editingLit ? 'Edit Referensi Jurnal' : 'Tambah Referensi Jurnal & Research Gap'}
               </h3>
               <button
                 type="button"
@@ -425,11 +566,11 @@ export const LiteratureReviewView: React.FC = () => {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Keterbatasan & Research Gap *</label>
+              <label className="text-xs font-semibold text-slate-700">Research Gap / Novelty *</label>
               <textarea
                 rows={2}
                 required
-                placeholder="Rincian celah penelitian (gap) yang akan diisi oleh penelitian kelompok..."
+                placeholder="Rincian celah penelitian (gap) yang akan diisi oleh penelitian Anda..."
                 value={researchGap}
                 onChange={(e) => setResearchGap(e.target.value)}
                 className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-[#2d6a4f]"
@@ -437,16 +578,16 @@ export const LiteratureReviewView: React.FC = () => {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Relevansi untuk Anggota *</label>
+              <label className="text-xs font-semibold text-slate-700">Tabel Matriks Milik Anggota *</label>
               <select
                 value={relevanceForUserId}
                 onChange={(e) => setRelevanceForUserId(e.target.value)}
                 className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-[#2d6a4f]"
               >
-                <option value="all">Semua Anggota (Kelompok)</option>
+                <option value="all">Seluruh Kelompok</option>
                 {members.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.displayName} ({m.role})
+                  <option key={m.id || m.uid} value={m.id || m.uid}>
+                    Matriks {m.displayName} ({m.role})
                   </option>
                 ))}
               </select>
